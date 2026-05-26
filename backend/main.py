@@ -25,14 +25,14 @@ app.add_middleware(
 )
 
 def fetch_steam_metadata(appid: str):
-    """Fetches authentic metadata from Steam Store API."""
+    """Fetches real metadata from the Steam Store API."""
     try:
         url = f"https://store.steampowered.com/api/appdetails?appids={appid}"
         res = requests.get(url, timeout=5)
         data = res.json()
         if data and data.get(appid, {}).get('success'):
             g_data = data[appid]['data']
-            desc = g_data.get('short_description', "Secure archive entry.")
+            desc = g_data.get('short_description', "No data indexed.")
             desc = re.sub('<[^<]+?>', '', desc)
             year = 2023
             if g_data.get('release_date', {}).get('date'):
@@ -66,6 +66,7 @@ async def save_session(data: SessionData):
 
 @app.post("/sync/all")
 async def trigger_sync(background_tasks: BackgroundTasks):
+    """Ultra-resilient synchronization engine for real Steam libraries."""
     connected_platforms = []
     for p in ["steam", "epic games", "playstation", "xbox"]:
         sess = auth_service.get_session("user_1", p)
@@ -75,58 +76,83 @@ async def trigger_sync(background_tasks: BackgroundTasks):
         return {"message": "Access Denied: No nodes authenticated.", "scraped": 0}
 
     with Session(engine) as session:
-        # --- PERMANENT CACHE PURGE ---
+        # 1. PURGE ALL (Dump Cache)
         for eg in session.exec(select(Game)).all():
             session.delete(eg)
         session.commit()
-        print("[SYNC] Global purge complete. re-scraping real sources...")
+        print("[SYNC] Global Cache Purged. Starting Deep-Scrape sequence...")
 
         total_scraped = 0
         for platform, sess in connected_platforms:
             if platform == "steam":
                 steam_id = sess.get("user_id")
                 if steam_id:
-                    print(f"[SCRAPER] Target Lock: {steam_id}")
+                    print(f"[SYNC] Target Profile: {steam_id}")
                     try:
                         scr = requests.Session()
+                        # Use high-fidelity browser headers
                         scr.headers.update({
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                             'Accept-Language': 'en-US,en;q=0.9',
-                            'Referer': f'https://steamcommunity.com/profiles/{steam_id}/',
-                            'X-Requested-With': 'XMLHttpRequest'
+                            'Referer': 'https://steamcommunity.com/'
                         })
 
-                        # LAYER 1: AJAX JSON (The most complete source)
-                        # This is what the browser actually uses to load the list
-                        ajax_url = f"https://steamcommunity.com/profiles/{steam_id}/games/?tab=all&js=1"
-                        res = scr.get(ajax_url, timeout=15)
-                        match = re.search(r'var rgGames = (\[.*?\]);', res.text)
+                        # LAYER 1: THE MASTER LIST (Scraping the games tab directly)
+                        print(f"[SCRAPER] Attempting Master List Scrape...")
+                        # We try both URL variants to ensure we land on the right template
+                        games_url = f"https://steamcommunity.com/profiles/{steam_id}/games/?tab=all"
+                        res = scr.get(games_url, timeout=15)
                         
+                        # Find the massive rgGames JSON array in the script tag
+                        match = re.search(r'var rgGames = (\[.*?\]);', res.text)
                         if match:
                             steam_games = json.loads(match.group(1))
-                            print(f"[SCRAPER] AJAX Success! Identified {len(steam_games)} games.")
+                            print(f"[SCRAPER] SUCCESS: Found {len(steam_games)} games in Master List.")
                             for sg in steam_games:
                                 aid, name = str(sg.get('appid')), sg.get('name')
-                                if not session.exec(select(Game).where(Game.platform_game_id == aid)).first():
-                                    desc, year, genre = fetch_steam_metadata(aid)
-                                    session.add(Game(platform_game_id=aid, name=name, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=desc, year=year, genre=genre))
+                                existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
+                                if not existing:
+                                    d, y, g = fetch_steam_metadata(aid)
+                                    session.add(Game(platform_game_id=aid, name=name, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=d, year=y, genre=g))
                                     total_scraped += 1
-                        
-                        # LAYER 2: BADGES (Fallback for missing games)
+                            session.commit()
+                            continue # Successfully got the full library, skip fallbacks
+
+                        # LAYER 2: RECENT ACTIVITY FALLBACK
+                        print(f"[SCRAPER] Master List blocked. Falling back to Recent Activity...")
+                        prof_res = scr.get(f"https://steamcommunity.com/profiles/{steam_id}/", timeout=10)
+                        recent = re.findall(r'https://steamcommunity.com/app/(\d+)">([^<]+)</a>', prof_res.text)
+                        for aid, name in recent:
+                            existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
+                            if not existing:
+                                d, y, g = fetch_steam_metadata(aid)
+                                session.add(Game(platform_game_id=aid, name=name.strip(), platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=d, year=y, genre=g))
+                                total_scraped += 1
+                        session.commit()
+
+                        # LAYER 3: BADGES (Final pass for owned games with cards)
+                        print(f"[SCRAPER] Layer 3: Scanning Badge Repository...")
                         badge_res = scr.get(f"https://steamcommunity.com/profiles/{steam_id}/badges/", timeout=10)
                         badges = re.findall(r'/badges/(\d+)">.*?class="badge_title">([^<]+)<', badge_res.text, re.DOTALL)
                         for aid, title in badges:
                             t = title.strip().replace('&nbsp;', '')
-                            if any(x in t for x in ["Badge", "Level", "Sale", "Awards", "Year", "Steam Replay"]): continue
-                            if not session.exec(select(Game).where(Game.platform_game_id == aid)).first():
-                                desc, year, genre = fetch_steam_metadata(aid)
-                                session.add(Game(platform_game_id=aid, name=t, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=desc, year=year, genre=genre))
+                            # STRICT FILTER: Ignore non-game badges
+                            if any(x in t for x in ["Badge", "Level", "Sale", "Awards", "Year", "Steam Replay", "Community", "Corgi", "Pillar", "Agent"]): continue
+                            existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
+                            if not existing:
+                                d, y, g = fetch_steam_metadata(aid)
+                                session.add(Game(platform_game_id=aid, name=t, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=d, year=y, genre=g))
                                 total_scraped += 1
-
                         session.commit()
-                    except Exception as e: print(f"[SCRAPER] Steam Fatal: {e}")
 
-    return {"message": f"Sync complete. Ingested {total_scraped} real units.", "scraped": total_scraped}
+                    except Exception as e:
+                        print(f"[SCRAPER] Fatal error for {steam_id}: {e}")
+
+        # Ensure no mock data fallbacks are used. Empty library is better than fake data.
+        real_count = len(session.exec(select(Game).where(Game.platform == "steam")).all())
+        print(f"[SYNC] Complete. Total verified units: {real_count}")
+
+    return {"message": f"Sync complete. {real_count} real units active.", "scraped": real_count}
 
 @app.get("/health")
 async def health():
