@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sqlmodel
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+steam
+epicstore-api
+psnawp
+python-dotenv
