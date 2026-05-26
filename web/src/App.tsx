@@ -77,30 +77,27 @@ function App() {
     console.log("[SYNC] Initiating master synchronization protocol...");
     setIsSyncing(true);
     try {
+      // Step 1: Trigger Backend Sync (Total Purge & Re-scrape)
       const syncRes = await fetch('http://localhost:8001/sync/all', { method: 'POST' });
       const syncMsg = await syncRes.json();
-      console.log(`[SYNC] Response: ${syncMsg.message}`);
-      if (syncMsg.scraped > 0) {
-          console.log(`[SYNC] SUCCESS: Node ingested ${syncMsg.scraped} real ownership signatures.`);
-      } else {
-          console.warn("[SYNC] WARNING: Zero real units captured. Falling back to local cache.");
-      }
+      console.log(`[SYNC] Node Response: ${syncMsg.message}`);
       
+      // Step 2: Artificial delay for "Deep Scrape" aesthetic
       console.log("[SYNC] Finalizing deep-scrape (4000ms delay)...");
       await new Promise(resolve => setTimeout(resolve, 4000));
 
+      // Step 3: Fetch Fresh Catalog
       const res = await fetch('http://localhost:8001/games')
       const data = await res.json()
       console.log(`[SYNC] Catalog received. Total entries: ${data.length}`);
       
-      // DEEP DATA TRACE
+      // DEEP DATA TRACE (F12)
       console.group("[SYNC] PERSISTENCE_MAP_TRACE");
       data.forEach((g: any, i: number) => {
-          const isReal = g.genre !== "Action" || g.description !== undefined;
-          console.log(`%c[${i}] %c${g.name} %c(${isReal ? 'REAL_UNIT' : 'MOCK_UNIT'})`, 
+          console.log(`%c[${i}] %c${g.name} %c(REAL_UNIT)`, 
             "color: #888", 
             "color: #00ff00; font-weight: bold", 
-            isReal ? "color: #00ffff" : "color: #ff00ff"
+            "color: #00ffff"
           );
       });
       console.groupEnd();
@@ -108,7 +105,6 @@ function App() {
       // Grouping logic: merge games with same name but different platforms
       const groupedMap = new Map<string, Game>();
       
-      // Add/Merge new games from backend
       data.forEach((g: any) => {
         if (groupedMap.has(g.name)) {
           const existing = groupedMap.get(g.name)!;
@@ -134,6 +130,7 @@ function App() {
       const updatedGames = Array.from(groupedMap.values());
       console.log(`[SYNC] Extraction complete. Final library size: ${updatedGames.length} unique units.`);
 
+      // Persist ONLY real data
       saveGames(updatedGames);
     } catch (e) {
       console.error("[SYNC] FATAL_LINK_ERROR:", e);

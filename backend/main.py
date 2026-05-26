@@ -66,7 +66,6 @@ async def save_session(data: SessionData):
 
 @app.post("/sync/all")
 async def trigger_sync(background_tasks: BackgroundTasks):
-    """Purges all cached units and scrapes real-time data from all authenticated nodes."""
     connected_platforms = []
     for p in ["steam", "epic games", "playstation", "xbox"]:
         sess = auth_service.get_session("user_1", p)
@@ -76,12 +75,11 @@ async def trigger_sync(background_tasks: BackgroundTasks):
         return {"message": "Access Denied: No nodes authenticated.", "scraped": 0}
 
     with Session(engine) as session:
-        # --- GLOBAL CACHE PURGE ---
-        # Ensure 100% clean state. Get rid of EVERYTHING, including any mock remnants.
+        # --- PERMANENT CACHE PURGE ---
         for eg in session.exec(select(Game)).all():
             session.delete(eg)
         session.commit()
-        print("[SYNC] Global Cache Purge complete. Re-scraping authenticated nodes...")
+        print("[SYNC] Global purge complete. re-scraping real sources...")
 
         total_scraped = 0
         for platform, sess in connected_platforms:
@@ -91,45 +89,44 @@ async def trigger_sync(background_tasks: BackgroundTasks):
                     print(f"[SCRAPER] Target Lock: {steam_id}")
                     try:
                         scr = requests.Session()
-                        scr.headers.update({'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'})
+                        scr.headers.update({
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                            'Accept-Language': 'en-US,en;q=0.9',
+                            'Referer': f'https://steamcommunity.com/profiles/{steam_id}/',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        })
 
-                        # LAYER 1: RECENT ACTIVITY (Highest visibility)
-                        prof_res = scr.get(f"https://steamcommunity.com/profiles/{steam_id}/", timeout=10)
-                        recent = re.findall(r'https://steamcommunity.com/app/(\d+)">([^<]+)</a>', prof_res.text)
-                        for aid, name in recent:
-                            existing = session.exec(select(Game).where(Game.platform_game_id == aid)).first()
-                            if not existing:
-                                d, y, g = fetch_steam_metadata(aid)
-                                session.add(Game(platform_game_id=aid, name=name.strip(), platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=d, year=y, genre=g))
-                                total_scraped += 1
-                        session.commit()
-
-                        # LAYER 2: BADGES (Broad Capture for owned games)
+                        # LAYER 1: AJAX JSON (The most complete source)
+                        # This is what the browser actually uses to load the list
+                        ajax_url = f"https://steamcommunity.com/profiles/{steam_id}/games/?tab=all&js=1"
+                        res = scr.get(ajax_url, timeout=15)
+                        match = re.search(r'var rgGames = (\[.*?\]);', res.text)
+                        
+                        if match:
+                            steam_games = json.loads(match.group(1))
+                            print(f"[SCRAPER] AJAX Success! Identified {len(steam_games)} games.")
+                            for sg in steam_games:
+                                aid, name = str(sg.get('appid')), sg.get('name')
+                                if not session.exec(select(Game).where(Game.platform_game_id == aid)).first():
+                                    desc, year, genre = fetch_steam_metadata(aid)
+                                    session.add(Game(platform_game_id=aid, name=name, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=desc, year=year, genre=genre))
+                                    total_scraped += 1
+                        
+                        # LAYER 2: BADGES (Fallback for missing games)
                         badge_res = scr.get(f"https://steamcommunity.com/profiles/{steam_id}/badges/", timeout=10)
-                        # More aggressive badge regex
                         badges = re.findall(r'/badges/(\d+)">.*?class="badge_title">([^<]+)<', badge_res.text, re.DOTALL)
                         for aid, title in badges:
                             t = title.strip().replace('&nbsp;', '')
-                            if any(x in t for x in ["Badge", "Level", "Sale", "Awards", "Year"]): continue
+                            if any(x in t for x in ["Badge", "Level", "Sale", "Awards", "Year", "Steam Replay"]): continue
                             if not session.exec(select(Game).where(Game.platform_game_id == aid)).first():
-                                d, y, g = fetch_steam_metadata(aid)
-                                session.add(Game(platform_game_id=aid, name=t, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=d, year=y, genre=g))
+                                desc, year, genre = fetch_steam_metadata(aid)
+                                session.add(Game(platform_game_id=aid, name=t, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=desc, year=year, genre=genre))
                                 total_scraped += 1
-                        session.commit()
 
-                        # LAYER 3: XML (Regex Volume)
-                        xml_res = scr.get(f"https://steamcommunity.com/profiles/{steam_id}/games?xml=1", timeout=15)
-                        xml_matches = re.findall(r'<game>.*?<appID>(\d+)</appID>.*?<name>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</name>', xml_res.text, re.DOTALL)
-                        for aid, name in xml_matches:
-                            if not session.exec(select(Game).where(Game.platform_game_id == aid)).first():
-                                session.add(Game(platform_game_id=aid, name=name.strip(), platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description="Authentic Steam Unit", year=2023, genre="Steam Game"))
-                                total_scraped += 1
                         session.commit()
                     except Exception as e: print(f"[SCRAPER] Steam Fatal: {e}")
 
-        # Final DB Verification
-        real_count = len(session.exec(select(Game)).all())
-    return {"message": f"Sync complete. {real_count} real units active.", "scraped": real_count}
+    return {"message": f"Sync complete. Ingested {total_scraped} real units.", "scraped": total_scraped}
 
 @app.get("/health")
 async def health():
