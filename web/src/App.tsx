@@ -75,8 +75,10 @@ function App() {
     console.log("[SYNC] Initiating master synchronization protocol...");
     setIsSyncing(true);
     try {
+      const backendUrl = localStorage.getItem('syncstore_backend_url') || 'http://localhost:8001';
+      
       // Step 1: Trigger Backend Sync (Total Purge & Re-scrape)
-      const syncRes = await fetch('http://localhost:8001/sync/all', { method: 'POST' });
+      const syncRes = await fetch(`${backendUrl}/sync/all`, { method: 'POST' });
       const syncMsg = await syncRes.json();
       console.log(`[SYNC] Node Response: ${syncMsg.message}`);
       
@@ -85,7 +87,7 @@ function App() {
       await new Promise(resolve => setTimeout(resolve, 4000));
 
       // Step 3: Fetch Fresh Catalog
-      const res = await fetch('http://localhost:8001/games')
+      const res = await fetch(`${backendUrl}/games`)
       const data = await res.json()
       console.log(`[SYNC] Catalog received. Total entries: ${data.length}`);
       

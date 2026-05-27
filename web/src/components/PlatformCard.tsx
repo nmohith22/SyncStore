@@ -25,9 +25,13 @@ export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardPro
     console.log(`[AUTH] Initiating real-time uplink to ${name}...`);
     setStatus('logging_in');
     
+    // Dynamic origin detection for production (GitHub Pages)
+    const origin = window.location.origin + window.location.pathname;
+    const cleanOrigin = origin.endsWith('/') ? origin : origin + '/';
+
     let targetUrl = loginUrl;
     if (name.toLowerCase() === 'steam') {
-        const returnTo = encodeURIComponent('http://localhost:5173/');
+        const returnTo = encodeURIComponent(cleanOrigin);
         targetUrl = `https://steamcommunity.com/openid/login?openid.ns=http://specs.openid.net/auth/2.0&openid.mode=checkid_setup&openid.return_to=${returnTo}&openid.realm=${returnTo}&openid.identity=http://specs.openid.net/auth/2.0/identifier_select&openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select`;
     }
 
@@ -47,8 +51,8 @@ export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardPro
         if (popup && !popup.closed) {
           const currentUrl = popup.location.href;
           
-          // Check if we've been redirected back to our app (localhost)
-          if (currentUrl.includes('localhost:5173')) {
+          // Check if we've been redirected back to our app (dynamic host)
+          if (currentUrl.includes(window.location.host)) {
             console.log(`[AUTH] Capture phase reached. Extracting account signatures...`);
             
             const params = new URLSearchParams(popup.location.search);
@@ -61,8 +65,11 @@ export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardPro
                 popup.close();
                 clearInterval(checkPopup);
 
+                // Localize backend endpoint
+                const backendUrl = localStorage.getItem('syncstore_backend_url') || 'http://localhost:8001';
+
                 // Notify backend of the REAL captured SteamID
-                fetch('http://localhost:8001/auth/session', {
+                fetch(`${backendUrl}/auth/session`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({

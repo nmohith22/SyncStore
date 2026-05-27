@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Square, RectangleHorizontal, Palette, Settings2 } from 'lucide-react';
+import { X, Square, RectangleHorizontal, Palette, Settings2, Server, Trash2 } from 'lucide-react';
+import { useState } from 'react';
 import { themes } from '../styles/themes';
 import { useTheme } from '../styles/ThemeContext';
 
@@ -12,6 +13,21 @@ interface SettingsModalProps {
 
 export const SettingsModal = ({ isOpen, onClose, cardStyle, setCardStyle }: SettingsModalProps) => {
   const { theme, setTheme } = useTheme();
+  const [steamKey, setSteamKey] = useState(localStorage.getItem('syncstore_steam_api_key') || '');
+  const [backendUrl, setBackendUrl] = useState(localStorage.getItem('syncstore_backend_url') || 'http://localhost:8001');
+
+  const saveSettings = () => {
+    localStorage.setItem('syncstore_steam_api_key', steamKey);
+    localStorage.setItem('syncstore_backend_url', backendUrl);
+    onClose();
+  };
+
+  const purgeData = () => {
+    if (confirm('CRITICAL: This will permanently delete your synced library and all local credentials from this browser. Continue?')) {
+        localStorage.clear();
+        window.location.reload();
+    }
+  };
 
   return (
     <AnimatePresence>
@@ -42,6 +58,58 @@ export const SettingsModal = ({ isOpen, onClose, cardStyle, setCardStyle }: Sett
             </div>
 
             <div className="space-y-16">
+              {/* Uplink Infrastructure */}
+              <section>
+                <div className="flex items-center gap-3 mb-8">
+                  <Server size={16} className="text-main" />
+                  <h3 className="text-xs font-black uppercase tracking-[0.4em] text-sub">Uplink Infrastructure</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Backend Node URL</label>
+                        <input 
+                        type="text"
+                        value={backendUrl}
+                        onChange={(e) => setBackendUrl(e.target.value)}
+                        placeholder="http://localhost:8001"
+                        className="w-full bg-sub/5 border-2 border-sub/10 rounded-xl px-6 py-4 text-xs font-mono tracking-widest focus:outline-none focus:border-main/50 transition-colors"
+                        />
+                        <p className="text-[9px] opacity-30 uppercase font-black tracking-widest">Address of your local or private sync node.</p>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest opacity-40">Steam Web API Key</label>
+                        <input 
+                        type="password"
+                        value={steamKey}
+                        onChange={(e) => setSteamKey(e.target.value)}
+                        placeholder="PASTE_KEY_HERE"
+                        className="w-full bg-sub/5 border-2 border-sub/10 rounded-xl px-6 py-4 text-xs font-mono tracking-widest focus:outline-none focus:border-main/50 transition-colors"
+                        />
+                        <p className="text-[9px] opacity-30 uppercase font-black tracking-widest">Stored locally in your browser only.</p>
+                    </div>
+                </div>
+              </section>
+
+              {/* Security & Privacy */}
+              <section>
+                <div className="flex items-center gap-3 mb-8">
+                  <Trash2 size={16} className="text-error" />
+                  <h3 className="text-xs font-black uppercase tracking-[0.4em] text-error opacity-60">Security & Privacy</h3>
+                </div>
+                <div className="p-8 border-2 border-error/10 bg-error/5 rounded-[1.5rem] flex items-center justify-between">
+                    <div>
+                        <h4 className="font-black uppercase tracking-widest text-xs mb-1">Local Purge</h4>
+                        <p className="text-[10px] opacity-40 uppercase font-black tracking-widest">Wipe all local session data and synced libraries.</p>
+                    </div>
+                    <button 
+                        onClick={purgeData}
+                        className="px-8 py-3 bg-error/20 hover:bg-error text-error hover:text-white transition-all rounded-xl font-black uppercase tracking-widest text-[10px]"
+                    >
+                        Purge Catalog
+                    </button>
+                </div>
+              </section>
+
               {/* Card Style */}
               <section>
                 <div className="flex items-center gap-3 mb-8">
@@ -110,7 +178,7 @@ export const SettingsModal = ({ isOpen, onClose, cardStyle, setCardStyle }: Sett
 
             <div className="mt-16 pt-10 border-t-2 border-sub/10 flex justify-end">
               <button 
-                onClick={onClose}
+                onClick={saveSettings}
                 className="px-14 py-5 bg-main text-bg rounded-[1.2rem] font-black uppercase tracking-[0.3em] text-xs transition-all hover:scale-105 active:scale-95 shadow-[0_0_30px_rgba(var(--color-main-rgb),0.3)]"
               >
                 Accept Changes
