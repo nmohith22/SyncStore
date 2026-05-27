@@ -87,6 +87,10 @@ export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardPro
                   setUsername(finalUser);
                   localStorage.setItem(`syncstore_session_${name.toLowerCase()}`, JSON.stringify({ username: finalUser, steamId }));
                   onLoginSuccess(name.toLowerCase(), finalUser);
+                }).catch(err => {
+                  console.error(`[AUTH] UPLINK_FAILURE: Node at ${backendUrl} is unreachable.`, err);
+                  setStatus('idle');
+                  alert(`CONNECTION_REFUSED: Your local sync node at ${backendUrl} is not running.\n\nPlease start the backend to finalize authentication.`);
                 });
             }
           }
