@@ -1,0 +1,45 @@
+name: SyncStore CI
+
+on:
+  push:
+    branches-ignore: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  web-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+      - name: Install Web Deps
+        run: npm ci
+        working-directory: web
+      - name: Lint Web
+        run: npm run lint
+        working-directory: web
+      - name: Build Web
+        run: npm run build
+        working-directory: web
+
+  mobile-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install Mobile Deps
+        run: npm ci
+        working-directory: mobile
+      - name: Check Expo Build
+        run: npx expo export
+        working-directory: mobile
