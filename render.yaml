@@ -11,12 +11,12 @@ services:
       - key: SECRET_KEY
         generateValue: true
 
-  - type: static
+  - type: web
     name: syncstore-frontend
+    env: node
     buildCommand: npm install && npm run build
-    staticPublishPath: web/dist
-    rootDir: web
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+    startCommand: npx serve -s web/dist
+    rootDir: .
+    envVars:
+      - key: NODE_VERSION
+        value: 20
