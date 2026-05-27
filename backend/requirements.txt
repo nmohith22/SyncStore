@@ -8,3 +8,5 @@ steam
 epicstore-api
 psnawp
 python-dotenv
+pytest
+httpx

@@ -14,26 +14,14 @@ class SteamService:
             self.api = None
 
     async def get_user_games(self, steam_id: str = None):
-        # Check for saved session cookies first
-        session = auth_service.get_session("user_1", "steam")
-        if session:
-            return [
-                {
-                    "id": "steam-scraped-1",
-                    "name": "Scraped Game via Cookie",
-                    "platform": "Steam",
-                    "playtime_forever": 120,
-                    "image_url": None
-                }
-            ]
-
         if not self.api:
-            return {"error": "Steam API key not configured and no session found"}
+            return {"error": "Steam API key not configured"}
         
         if not steam_id:
-            return {"error": "steam_id required if no session exists"}
+            return {"error": "steam_id required"}
             
         try:
+            # Using the steam-python library's WebAPI wrapper
             response = self.api.call('IPlayerService.GetOwnedGames', 
                                      steamid=steam_id, 
                                      include_appinfo=True, 
@@ -46,11 +34,12 @@ class SteamService:
                     "name": game['name'],
                     "platform": "Steam",
                     "playtime_forever": game.get('playtime_forever', 0),
-                    "image_url": f"https://media.steampowered.com/steamcommunity/public/images/apps/{game['appid']}/{game['img_icon_url']}.jpg" if game.get('img_icon_url') else None
+                    "image_url": f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{game['appid']}/library_600x900.jpg"
                 }
                 for game in games
             ]
         except Exception as e:
+            print(f"[STEAM_API] Error: {e}")
             return {"error": str(e)}
 
 steam_service = SteamService()

@@ -8,6 +8,7 @@ import xml.etree.ElementTree as ET
 from typing import List, Dict, Optional
 
 from services.auth_service import auth_service, SessionData
+from services.steam_service import steam_service
 from database import create_db_and_tables, engine, Game
 
 app = FastAPI(title="SyncStore API")
@@ -88,6 +89,22 @@ async def trigger_sync(background_tasks: BackgroundTasks):
                 steam_id = sess.get("user_id")
                 if steam_id:
                     print(f"[SYNC] Target Profile: {steam_id}")
+                    
+                    # LAYER 0: OFFICIAL WEB API (Primary)
+                    print(f"[SYNC] Layer 0: Attempting Web API Sync...")
+                    api_games = await steam_service.get_user_games(steam_id)
+                    if isinstance(api_games, list) and len(api_games) > 0 and "error" not in api_games[0]:
+                        print(f"[SYNC] API SUCCESS: Found {len(api_games)} games.")
+                        for ag in api_games:
+                            aid, name = str(ag['id']), ag['name']
+                            existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
+                            if not existing:
+                                d, y, g = fetch_steam_metadata(aid)
+                                session.add(Game(platform_game_id=aid, name=name, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=d, year=y, genre=g))
+                                total_scraped += 1
+                        session.commit()
+                        continue # If API works, skip scraping
+
                     try:
                         scr = requests.Session()
                         # Use high-fidelity browser headers
@@ -98,28 +115,46 @@ async def trigger_sync(background_tasks: BackgroundTasks):
                         })
 
                         # LAYER 1: THE MASTER LIST (Scraping the games tab directly)
-                        print(f"[SCRAPER] Attempting Master List Scrape...")
-                        # We try both URL variants to ensure we land on the right template
+                        print(f"[SCRAPER] Layer 1: Attempting Master List Scrape...")
                         games_url = f"https://steamcommunity.com/profiles/{steam_id}/games/?tab=all"
                         res = scr.get(games_url, timeout=15)
                         
-                        # Find the massive rgGames JSON array in the script tag
-                        match = re.search(r'var rgGames = (\[.*?\]);', res.text)
-                        if match:
-                            steam_games = json.loads(match.group(1))
-                            print(f"[SCRAPER] SUCCESS: Found {len(steam_games)} games in Master List.")
-                            for sg in steam_games:
-                                aid, name = str(sg.get('appid')), sg.get('name')
+                        if "login" not in res.url:
+                            match = re.search(r'var rgGames = (\[.*?\]);', res.text)
+                            if match:
+                                steam_games = json.loads(match.group(1))
+                                print(f"[SCRAPER] SUCCESS: Found {len(steam_games)} games in Master List.")
+                                for sg in steam_games:
+                                    aid, name = str(sg.get('appid')), sg.get('name')
+                                    existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
+                                    if not existing:
+                                        d, y, g = fetch_steam_metadata(aid)
+                                        session.add(Game(platform_game_id=aid, name=name, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=d, year=y, genre=g))
+                                        total_scraped += 1
+                                session.commit()
+                                continue # Successfully got the full library, skip fallbacks
+
+                        # LAYER 1.5: XML LIST (Permissive fallback for public profiles)
+                        print(f"[SCRAPER] Layer 1.5: Attempting XML Repository Scrape...")
+                        xml_url = f"https://steamcommunity.com/profiles/{steam_id}/games/?xml=1"
+                        xml_res = scr.get(xml_url, timeout=10)
+                        if "<gamesList>" in xml_res.text:
+                            root = ET.fromstring(xml_res.content)
+                            xml_games = root.findall('.//game')
+                            print(f"[SCRAPER] SUCCESS: Found {len(xml_games)} games in XML List.")
+                            for g in xml_games:
+                                aid = g.find('appID').text
+                                name = g.find('name').text
                                 existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
                                 if not existing:
-                                    d, y, g = fetch_steam_metadata(aid)
-                                    session.add(Game(platform_game_id=aid, name=name, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=d, year=y, genre=g))
+                                    d, y, g_meta = fetch_steam_metadata(aid)
+                                    session.add(Game(platform_game_id=aid, name=name, platform="steam", image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", description=d, year=y, genre=g_meta))
                                     total_scraped += 1
                             session.commit()
-                            continue # Successfully got the full library, skip fallbacks
+                            continue
 
                         # LAYER 2: RECENT ACTIVITY FALLBACK
-                        print(f"[SCRAPER] Master List blocked. Falling back to Recent Activity...")
+                        print(f"[SCRAPER] Layer 2: Falling back to Recent Activity...")
                         prof_res = scr.get(f"https://steamcommunity.com/profiles/{steam_id}/", timeout=10)
                         recent = re.findall(r'https://steamcommunity.com/app/(\d+)">([^<]+)</a>', prof_res.text)
                         for aid, name in recent:
@@ -137,7 +172,7 @@ async def trigger_sync(background_tasks: BackgroundTasks):
                         for aid, title in badges:
                             t = title.strip().replace('&nbsp;', '')
                             # STRICT FILTER: Ignore non-game badges
-                            if any(x in t for x in ["Badge", "Level", "Sale", "Awards", "Year", "Steam Replay", "Community", "Corgi", "Pillar", "Agent"]): continue
+                            if any(x in t for x in ["Badge", "Level", "Sale", "Awards", "Year", "Steam Replay", "Community", "Corgi", "Pillar", "Agent", "Nomination"]): continue
                             existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
                             if not existing:
                                 d, y, g = fetch_steam_metadata(aid)
