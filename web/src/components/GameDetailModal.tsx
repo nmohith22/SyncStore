@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Clock, Calendar, Hash, Tag, ExternalLink } from 'lucide-react';
 
@@ -18,7 +17,7 @@ interface GameDetailModalProps {
   onClose: () => void;
 }
 
-export const GameDetailModal: React.FC<GameDetailModalProps> = ({ game, onClose }) => {
+export const GameDetailModal = ({ game, onClose }: GameDetailModalProps) => {
   if (!game) return null;
 
   const genres = game.genre?.split(', ') || ['Action', 'RPG'];

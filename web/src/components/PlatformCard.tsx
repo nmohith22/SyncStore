@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, MouseEvent } from 'react';
 import { motion } from 'framer-motion';
-import { LogIn, CheckCircle, AlertCircle, User, XCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle, User, XCircle } from 'lucide-react';
 
 interface PlatformCardProps {
   name: string;
@@ -8,7 +8,7 @@ interface PlatformCardProps {
   onLoginSuccess: (platform: string, username: string) => void;
 }
 
-export const PlatformCard: React.FC<PlatformCardProps> = ({ name, loginUrl, onLoginSuccess }) => {
+export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardProps) => {
   const [status, setStatus] = useState<'idle' | 'logging_in' | 'connected'>('idle');
   const [username, setUsername] = useState<string | null>(null);
 
@@ -98,7 +98,7 @@ export const PlatformCard: React.FC<PlatformCardProps> = ({ name, loginUrl, onLo
     }, 1000);
   };
 
-  const handleDisconnect = (e: React.MouseEvent) => {
+  const handleDisconnect = (e: MouseEvent) => {
     e.stopPropagation();
     console.log(`[AUTH] Terminating uplink to ${name}.`);
     localStorage.removeItem(`syncstore_session_${name.toLowerCase()}`);

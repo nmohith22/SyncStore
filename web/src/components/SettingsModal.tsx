@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Square, RectangleHorizontal, Palette, Settings2 } from 'lucide-react';
 import { themes } from '../styles/themes';
@@ -11,7 +10,7 @@ interface SettingsModalProps {
   setCardStyle: (style: 'square' | 'poster') => void;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, cardStyle, setCardStyle }) => {
+export const SettingsModal = ({ isOpen, onClose, cardStyle, setCardStyle }: SettingsModalProps) => {
   const { theme, setTheme } = useTheme();
 
   return (

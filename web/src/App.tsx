@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useTheme } from './styles/ThemeContext'
 import { Settings, RefreshCw, Filter, Search, Gamepad2 } from 'lucide-react'
 import { PlatformCard } from './components/PlatformCard'
 import { SettingsModal } from './components/SettingsModal'
@@ -41,7 +40,6 @@ const PlatformLabel = ({ platforms }: { platforms: string[] }) => {
 }
 
 function App() {
-  const { theme } = useTheme()
   const [activeTab, setActiveTab] = useState('library')
   const [games, setGames] = useState<Game[]>([])
   const [searchQuery, setSearchQuery] = useState('')
@@ -152,7 +150,7 @@ function App() {
   const containerVariants = {
     hidden: { opacity: 0 },
     show: { opacity: 1, transition: { staggerChildren: 0.03 } }
-  }
+  } as const
 
   const itemVariants = {
     hidden: { opacity: 0, y: 30, scale: 0.95 },
@@ -162,7 +160,7 @@ function App() {
       scale: 1,
       transition: { type: "spring", stiffness: 350, damping: 25 }
     }
-  }
+  } as const
 
   const getDynamicFontSize = (text: string) => {
     if (text.length > 25) return 'text-sm';
