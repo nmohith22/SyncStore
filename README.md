@@ -1,6 +1,8 @@
 # 🕹️ SyncStore
 
-SyncStore is a high-fidelity, real-time gaming dashboard that bridges your physical nodes with your digital library. It’s designed for players who want a single, clean interface to track their collections across Steam, Epic, PlayStation, and Xbox—without the clutter of mock data or simulations.
+**Live Dashboard:** [https://nmohith22.github.io/SyncStore/](https://nmohith22.github.io/SyncStore/)
+
+SyncStore is a high-fidelity, real-time gaming dashboard that bridges your physical nodes with your digital library. It’s designed for players who want a single, clean interface to track their collections across Steam, Epic, GOG, PlayStation, and Xbox—without the clutter of mock data or simulations.
 
 Unlike other aggregators, SyncStore uses a **Deep-Scrape Protocol** to pull your actual owned units, real playtime, and official high-res artwork directly from authenticated sources.
 

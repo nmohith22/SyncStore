@@ -172,6 +172,11 @@ function MainApp() {
                 onLoginSuccess={handleSync} 
               />
               <PlatformCard 
+                name="GOG" 
+                loginUrl="https://login.gog.com/auth?client_id=46899977096215643&redirect_uri=https://embed.gog.com/on_login_callback?gog_id=1&response_type=code&layout=default" 
+                onLoginSuccess={handleSync} 
+              />
+              <PlatformCard 
                 name="PlayStation" 
                 loginUrl="https://www.playstation.com/en-us/sign-in/" 
                 onLoginSuccess={handleSync} 

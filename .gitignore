@@ -35,3 +35,6 @@ Thumbs.db
 # Build artifacts
 web/dist/
 mobile/dist/
+
+# Local Gemini configuration
+GEMINI.md

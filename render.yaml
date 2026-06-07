@@ -2,7 +2,7 @@ services:
   - type: web
     name: syncstore-backend
     env: python
-    buildCommand: pip install -r backend/requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port 8000
     rootDir: backend
     envVars:
@@ -15,8 +15,8 @@ services:
     name: syncstore-frontend
     env: node
     buildCommand: npm install && npm run build
-    startCommand: npx serve -s web/dist
-    rootDir: .
+    startCommand: npx serve -s dist
+    rootDir: web
     envVars:
       - key: NODE_VERSION
         value: 20

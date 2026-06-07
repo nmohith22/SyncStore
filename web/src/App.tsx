@@ -23,6 +23,7 @@ const PlatformLabel = ({ platforms }: { platforms: string[] }) => {
     psn: 'bg-[var(--color-psn)]',
     playstation: 'bg-[var(--color-psn)]',
     xbox: 'bg-[var(--color-xbox)]',
+    gog: 'bg-[#603c94]',
   };
   
   return (
@@ -76,9 +77,14 @@ function App() {
     setIsSyncing(true);
     try {
       const backendUrl = localStorage.getItem('syncstore_backend_url') || 'http://localhost:8001';
+      const steamKey = localStorage.getItem('syncstore_steam_api_key') || '';
       
       // Step 1: Trigger Backend Sync (Total Purge & Re-scrape)
-      const syncRes = await fetch(`${backendUrl}/sync/all`, { method: 'POST' });
+      const syncRes = await fetch(`${backendUrl}/sync/all`, { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ steam_api_key: steamKey })
+      });
       const syncMsg = await syncRes.json();
       console.log(`[SYNC] Node Response: ${syncMsg.message}`);
       
@@ -255,6 +261,7 @@ function App() {
                 <option value="all"></option>
                 <option value="steam">STEAM_NET</option>
                 <option value="epic">EPIC_VAULT</option>
+                <option value="gog">GOG_GALAXY</option>
                 <option value="psn">PLAYSTATION_NET</option>
                 <option value="xbox">XBOX_CORE</option>
               </select>
@@ -269,10 +276,11 @@ function App() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8"
             >
               <PlatformCard name="Steam" loginUrl="https://store.steampowered.com/login/" onLoginSuccess={fetchGamesFromBackend} />
               <PlatformCard name="Epic Games" loginUrl="https://www.epicgames.com/id/login" onLoginSuccess={fetchGamesFromBackend} />
+              <PlatformCard name="GOG" loginUrl="https://login.gog.com/auth?client_id=46899977096215643&redirect_uri=https://embed.gog.com/on_login_callback?gog_id=1&response_type=code&layout=default" onLoginSuccess={fetchGamesFromBackend} />
               <PlatformCard name="PlayStation" loginUrl="https://www.playstation.com/en-us/sign-in/" onLoginSuccess={fetchGamesFromBackend} />
               <PlatformCard name="Xbox" loginUrl="https://www.xbox.com/en-US/auth/msa" onLoginSuccess={fetchGamesFromBackend} />
             </motion.div>

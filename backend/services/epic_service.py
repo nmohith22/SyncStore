@@ -1,37 +1,82 @@
-import os
-from epicstore_api import EpicGamesStoreAPI
-from dotenv import load_dotenv
-from services.auth_service import auth_service
+import httpx
+import logging
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 class EpicService:
     def __init__(self):
-        self.api = EpicGamesStoreAPI()
+        # Official Epic Games Launcher OAuth Client details
+        self.client_id = "34a02cf8f4414e29b15921876da36f9a"
+        self.client_secret = "daafbccc737745039dffe53d94fc76cf"
 
-    async def get_user_games(self, access_token: str = None):
-        # Check for saved session cookies
-        session = auth_service.get_session("user_1", "epic")
-        if session:
-            return [
-                {
-                    "id": "epic-scraped-1",
-                    "name": "Alan Wake 2",
-                    "platform": "Epic",
-                    "image_url": "https://p3254.vicp.net/proxy?url=https://cdn1.epicgames.com/static/offer/alan-wake-2/share-image_1920x1080-1920x1080-86060606060606060606060606060606.jpg",
-                    "year": 2023,
-                    "genre": "Horror"
-                },
-                {
-                    "id": "epic-scraped-2",
-                    "name": "Rocket League",
-                    "platform": "Epic",
-                    "image_url": "https://cdn1.epicgames.com/offer/9773aa1aa74f4686bca139ee81099863/EGS_RocketLeague_PsyonixLLC_S1_2560x1440-7e44a6a575a74e1d9d9b6d8d8d8d8d8d",
-                    "year": 2015,
-                    "genre": "Sports"
-                }
-            ]
+    async def exchange_code(self, code: str):
+        url = "https://account-public-service-prod.ol.epicgames.com/account/api/oauth/token"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            # Basic Auth header for the client credentials
+            # base64(34a02cf8f4414e29b15921876da36f9a:daafbccc737745039dffe53d94fc76cf)
+            "Authorization": "Basic MzRhMDJjZjhmNDQxNGUyOWIxNTkyMTg3NmRhMzZmOWE6ZGFhZmJjY2M3Mzc3NDUwMzlkZmZlNTNkOTRmYzc2Y2Y="
+        }
         
-        return []
+        data = {
+            "grant_type": "authorization_code",
+            "code": code
+        }
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                res = await client.post(url, data=data, headers=headers, timeout=10)
+                if res.status_code == 200:
+                    return res.json()
+                else:
+                    logger.error(f"[EPIC_AUTH] Exchange failed with status {res.status_code}: {res.text}")
+                    return None
+            except Exception as e:
+                logger.error(f"[EPIC_AUTH] Exception during token exchange: {e}")
+                return None
+
+    async def get_user_games(self, access_token: str = None, account_id: str = None):
+        if not access_token or not account_id:
+            logger.warning("[EPIC_API] Missing access token or account ID.")
+            return []
+            
+        # Epic Games library service endpoint
+        url = f"https://library-service.live.use1a.on.epicgames.com/library/api/public/items/{account_id}?includeAppStates=true"
+        headers = {
+            "Authorization": f"Bearer {access_token}"
+        }
+        
+        async with httpx.AsyncClient() as client:
+            try:
+                res = await client.get(url, headers=headers, timeout=15)
+                if res.status_code != 200:
+                    logger.error(f"[EPIC_API] Failed to fetch library: {res.status_code} - {res.text}")
+                    return []
+                
+                data = res.json()
+                records = data.get("records", [])
+                
+                games = []
+                for rec in records:
+                    app_name = rec.get("appName")
+                    catalog_item_id = rec.get("catalogItemId")
+                    catalog_namespace = rec.get("catalogNamespace")
+                    title = rec.get("title") or app_name
+                    
+                    # Compute a fallback epic games cover image URL
+                    image_url = f"https://cdn1.epicgames.com/item/{catalog_namespace}/{catalog_item_id}_tall.jpg"
+                    
+                    games.append({
+                        "id": catalog_item_id or app_name,
+                        "name": title,
+                        "platform": "Epic",
+                        "image_url": image_url,
+                        "year": 2023,
+                        "genre": "Epic Game"
+                    })
+                return games
+            except Exception as e:
+                logger.error(f"[EPIC_API] Exception during games fetch: {e}")
+                return []
 
 epic_service = EpicService()
