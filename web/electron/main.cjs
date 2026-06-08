@@ -19,6 +19,24 @@ ipcMain.handle('get-steam-cookies', async () => {
 let mainWindow;
 let backendProcess;
 
+function killBackend() {
+  if (backendProcess) {
+    console.log('Terminating FastAPI backend...');
+    const pid = backendProcess.pid;
+    if (process.platform === 'win32') {
+      const { exec } = require('child_process');
+      exec(`taskkill /pid ${pid} /T /F`, (err) => {
+        if (err) {
+          console.error('Failed to kill backend process tree:', err);
+        }
+      });
+    } else {
+      backendProcess.kill();
+    }
+    backendProcess = null;
+  }
+}
+
 function startBackend() {
   console.log('Spawning FastAPI backend...');
   const isDev = !app.isPackaged;
@@ -88,17 +106,12 @@ app.on('ready', () => {
 });
 
 app.on('window-all-closed', () => {
-  if (backendProcess) {
-    console.log('Terminating FastAPI backend...');
-    backendProcess.kill();
-  }
+  killBackend();
   if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 app.on('will-quit', () => {
-  if (backendProcess) {
-    backendProcess.kill();
-  }
+  killBackend();
 });
