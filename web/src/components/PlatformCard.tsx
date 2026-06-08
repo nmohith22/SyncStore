@@ -63,7 +63,7 @@ export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardPro
       `width=${width},height=${height},left=${left},top=${top}`
     );
 
-    const checkPopup = setInterval(() => {
+    const checkPopup = setInterval(async () => {
       try {
         if (popup && !popup.closed) {
           const currentUrl = popup.location.href;
@@ -81,6 +81,20 @@ export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardPro
                 popup.close();
                 clearInterval(checkPopup);
 
+                // Fetch Steam cookies from Electron if available
+                let steamCookies = {};
+                // @ts-ignore
+                if (window.require) {
+                  try {
+                    // @ts-ignore
+                    const { ipcRenderer } = window.require('electron');
+                    steamCookies = await ipcRenderer.invoke('get-steam-cookies');
+                    console.log('[AUTH] Captured Steam cookies:', Object.keys(steamCookies));
+                  } catch (e) {
+                    console.error('[AUTH] Failed to retrieve Steam cookies via IPC:', e);
+                  }
+                }
+
                 const backendUrl = localStorage.getItem('syncstore_backend_url') || 'http://localhost:8001';
 
                 fetch(`${backendUrl}/auth/session`, {
@@ -88,7 +102,7 @@ export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardPro
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     platform: 'steam',
-                    cookies: { session: "openid_verified_" + Date.now() },
+                    cookies: steamCookies,
                     user_id: steamId,
                     username: "Syncing_Account...",
                     steam_api_key: localStorage.getItem('syncstore_steam_api_key')

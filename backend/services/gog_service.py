@@ -42,48 +42,60 @@ class GOGService:
             logger.warning("[GOG_API] Missing GOG access token.")
             return []
             
-        url = "https://embed.gog.com/account/getFilteredProducts"
+        base_url = "https://embed.gog.com/account/getFilteredProducts"
         headers = {
             "Authorization": f"Bearer {access_token}"
         }
         
+        games = []
+        current_page = 1
+        total_pages = 1
+        
         async with httpx.AsyncClient() as client:
-            try:
-                res = await client.get(url, headers=headers, timeout=15)
-                if res.status_code != 200:
-                    logger.error(f"[GOG_API] Failed to fetch GOG library: {res.status_code} - {res.text}")
-                    return []
-                
-                data = res.json()
-                products = data.get("products", [])
-                
-                games = []
-                for prod in products:
-                    prod_id = str(prod.get("id"))
-                    title = prod.get("title")
-                    category = prod.get("category", "Action")
+            while current_page <= total_pages:
+                try:
+                    params = {
+                        "mediaType": 1,
+                        "page": current_page
+                    }
+                    res = await client.get(base_url, headers=headers, params=params, timeout=15)
+                    if res.status_code != 200:
+                        logger.error(f"[GOG_API] Failed to fetch GOG library page {current_page}: {res.status_code} - {res.text}")
+                        break
                     
-                    image = prod.get("image", "")
-                    if image and image.startswith("//"):
-                        image_url = "https:" + image
-                    elif image and image.startswith("/"):
-                        image_url = "https://images-1.gog-statics.com" + image
-                    elif image:
-                        image_url = image
-                    else:
-                        image_url = None
+                    data = res.json()
+                    products = data.get("products", [])
+                    total_pages = data.get("totalPages", 1)
+                    
+                    for prod in products:
+                        prod_id = str(prod.get("id"))
+                        title = prod.get("title")
+                        category = prod.get("category", "Action")
                         
-                    games.append({
-                        "id": prod_id,
-                        "name": title,
-                        "platform": "GOG",
-                        "image_url": image_url,
-                        "year": 2023,
-                        "genre": category
-                    })
-                return games
-            except Exception as e:
-                logger.error(f"[GOG_API] Exception during GOG library fetch: {e}")
-                return []
+                        image = prod.get("image", "")
+                        if image and image.startswith("//"):
+                            image_url = "https:" + image
+                        elif image and image.startswith("/"):
+                            image_url = "https://images-1.gog-statics.com" + image
+                        elif image:
+                            image_url = image
+                        else:
+                            image_url = None
+                            
+                        games.append({
+                            "id": prod_id,
+                            "name": title,
+                            "platform": "GOG",
+                            "image_url": image_url,
+                            "year": 2023,
+                            "genre": category
+                        })
+                    
+                    current_page += 1
+                except Exception as e:
+                    logger.error(f"[GOG_API] Exception during GOG library fetch at page {current_page}: {e}")
+                    break
+                    
+        return games
 
 gog_service = GOGService()

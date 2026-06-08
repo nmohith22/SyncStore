@@ -40,43 +40,56 @@ class EpicService:
             logger.warning("[EPIC_API] Missing access token or account ID.")
             return []
             
-        # Epic Games library service endpoint
-        url = f"https://library-service.live.use1a.on.epicgames.com/library/api/public/items/{account_id}?includeAppStates=true"
+        base_url = f"https://library-service.live.use1a.on.epicgames.com/library/api/public/items/{account_id}"
         headers = {
             "Authorization": f"Bearer {access_token}"
         }
         
+        games = []
+        cursor = None
+        
         async with httpx.AsyncClient() as client:
-            try:
-                res = await client.get(url, headers=headers, timeout=15)
-                if res.status_code != 200:
-                    logger.error(f"[EPIC_API] Failed to fetch library: {res.status_code} - {res.text}")
-                    return []
-                
-                data = res.json()
-                records = data.get("records", [])
-                
-                games = []
-                for rec in records:
-                    app_name = rec.get("appName")
-                    catalog_item_id = rec.get("catalogItemId")
-                    catalog_namespace = rec.get("catalogNamespace")
-                    title = rec.get("title") or app_name
+            while True:
+                try:
+                    params = {
+                        "includeAppStates": "true"
+                    }
+                    if cursor:
+                        params["cursor"] = cursor
+                        
+                    res = await client.get(base_url, headers=headers, params=params, timeout=15)
+                    if res.status_code != 200:
+                        logger.error(f"[EPIC_API] Failed to fetch library page (cursor={cursor}): {res.status_code} - {res.text}")
+                        break
                     
-                    # Compute a fallback epic games cover image URL
-                    image_url = f"https://cdn1.epicgames.com/item/{catalog_namespace}/{catalog_item_id}_tall.jpg"
+                    data = res.json()
+                    records = data.get("records", [])
                     
-                    games.append({
-                        "id": catalog_item_id or app_name,
-                        "name": title,
-                        "platform": "Epic",
-                        "image_url": image_url,
-                        "year": 2023,
-                        "genre": "Epic Game"
-                    })
-                return games
-            except Exception as e:
-                logger.error(f"[EPIC_API] Exception during games fetch: {e}")
-                return []
+                    for rec in records:
+                        app_name = rec.get("appName")
+                        catalog_item_id = rec.get("catalogItemId")
+                        catalog_namespace = rec.get("catalogNamespace")
+                        title = rec.get("title") or app_name
+                        
+                        image_url = f"https://cdn1.epicgames.com/item/{catalog_namespace}/{catalog_item_id}_tall.jpg"
+                        
+                        games.append({
+                            "id": catalog_item_id or app_name,
+                            "name": title,
+                            "platform": "Epic",
+                            "image_url": image_url,
+                            "year": 2023,
+                            "genre": "Epic Game"
+                        })
+                    
+                    meta = data.get("responseMetadata", {})
+                    cursor = meta.get("nextCursor")
+                    if not cursor:
+                        break
+                except Exception as e:
+                    logger.error(f"[EPIC_API] Exception during games fetch (cursor={cursor}): {e}")
+                    break
+                    
+        return games
 
 epic_service = EpicService()

@@ -50,6 +50,16 @@ def fetch_steam_metadata(appid: str):
     except: pass
     return None, 2023, "Steam Game"
 
+def parse_playtime_hours(val) -> int:
+    if not val:
+        return 0
+    try:
+        if isinstance(val, str):
+            val = val.replace(',', '')
+        return int(float(val))
+    except:
+        return 0
+
 @app.get("/games")
 async def get_games():
     with Session(engine) as session:
@@ -171,6 +181,14 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
                             'Referer': 'https://steamcommunity.com/'
                         })
 
+                        # Inject captured cookies from the user session to authenticate and view private profile lists
+                        cookies = sess.get("cookies")
+                        if cookies:
+                            print(f"[SCRAPER] Authenticating requests with session cookies: {list(cookies.keys())}")
+                            for name, val in cookies.items():
+                                scr.cookies.set(name, val, domain='steamcommunity.com')
+                                scr.cookies.set(name, val, domain='.steamcommunity.com')
+
                         # LAYER 1: THE MASTER LIST (Scraping the games tab directly)
                         print(f"[SCRAPER] Layer 1: Attempting Master List Scrape...")
                         games_url = f"https://steamcommunity.com/profiles/{steam_id}/games/?tab=all"
@@ -194,7 +212,7 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
                                             description=d, 
                                             year=y, 
                                             genre=g,
-                                            playtime_hours=int(sg.get("hours_forever", 0))
+                                            playtime_hours=parse_playtime_hours(sg.get("hours_forever"))
                                         ))
                                         total_scraped += 1
                                 session.commit()
@@ -212,7 +230,7 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
                                 aid = g.find('appID').text
                                 name = g.find('name').text
                                 playtime_val = g.find('hoursOnRecord')
-                                playtime = int(float(playtime_val.text)) if playtime_val is not None else 0
+                                playtime = parse_playtime_hours(playtime_val.text if playtime_val is not None else None)
                                 existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
                                 if not existing:
                                     d, y, g_meta = fetch_steam_metadata(aid)
