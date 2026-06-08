@@ -217,6 +217,9 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
                                         total_scraped += 1
                                 session.commit()
                                 continue
+                        else:
+                            print("[SCRAPER] Cookies expired or invalid (redirected to login). Clearing cookies for public fallback...")
+                            scr.cookies.clear()
 
                         # LAYER 1.5: XML LIST (Permissive fallback for public profiles)
                         print(f"[SCRAPER] Layer 1.5: Attempting XML Repository Scrape...")

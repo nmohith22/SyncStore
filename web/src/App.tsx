@@ -371,78 +371,16 @@ function App() {
       </main>
 
       <SettingsModal 
+
         isOpen={isSettingsOpen} 
         onClose={() => setIsSettingsOpen(false)} 
         cardStyle={cardStyle}
         setCardStyle={setCardStyle}
       />
-
       <GameDetailModal 
         game={selectedGame}
         onClose={() => setSelectedGame(null)}
       />
-
-      {/* Holographic deep sync overlay */}
-      <AnimatePresence>
-        {isSyncing && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl pointer-events-auto select-none"
-          >
-            {/* Spinning Nested Radar Dials */}
-            <div className="relative w-64 h-64 mb-16 flex items-center justify-center">
-              <motion.div 
-                animate={{ rotate: 360 }}
-                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                className="absolute inset-0 rounded-full border-4 border-dashed border-main/20"
-              />
-              <motion.div 
-                animate={{ rotate: -360 }}
-                transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-                className="absolute -inset-4 rounded-full border-2 border-sub/30 border-t-main"
-              />
-              <motion.div 
-                animate={{ rotate: 360 }}
-                transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
-                className="absolute -inset-8 rounded-full border border-dashed border-main/40 border-r-transparent border-l-transparent"
-              />
-              <RefreshCw size={56} className="text-main animate-spin-slow" />
-            </div>
-
-            <motion.h2 
-              animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="text-4xl font-black italic tracking-[0.25em] text-main uppercase mb-4"
-            >
-              SYNCING_ALL_UNITS
-            </motion.h2>
-            
-            <div className="flex flex-col gap-1.5 w-full max-w-md bg-sub/5 p-8 rounded-3xl border-2 border-sub/10 font-mono text-left text-[10px] uppercase tracking-wider text-text/80 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
-              <div className="flex justify-between items-center text-main font-black">
-                <span>SYSTEM_STATUS:</span>
-                <span className="animate-pulse">DEEP_SCRAPING_STOREFRONT_NODES</span>
-              </div>
-              <div className="w-full h-1 bg-sub/10 rounded-full overflow-hidden mt-3">
-                <motion.div 
-                  initial={{ width: "0%" }}
-                  animate={{ width: "100%" }}
-                  transition={{ duration: 4.5, ease: "easeInOut" }}
-                  className="h-full bg-main"
-                />
-              </div>
-              <span className="mt-4 text-sub">1. Connected to FastAPI local sidecar...</span>
-              <span className="text-sub">2. Session cookie validation active...</span>
-              <span className="text-sub">3. Scanning Steam, GOG, and Epic libraries...</span>
-              <span className="text-sub">4. Finalizing persistence data sync...</span>
-              
-              {/* Decorative scanline overlay */}
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-transparent h-1/2 w-full animate-pulse pointer-events-none" />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Footer */}
       <footer className="mt-48 border-t-2 border-sub/5 pt-16 opacity-30 relative z-10" />
