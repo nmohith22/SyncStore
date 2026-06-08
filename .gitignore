@@ -38,3 +38,9 @@ mobile/dist/
 
 # Local Gemini configuration
 GEMINI.md
+
+# Secrets and Local configuration
+.env
+.env.*
+backend/test_sessions/
+

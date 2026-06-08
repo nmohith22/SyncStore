@@ -81,14 +81,35 @@ async def save_session(data: SessionData):
         
     elif data.platform == "epic":
         if data.auth_code:
-            tokens = await epic_service.exchange_code(data.auth_code)
+            code_to_use = data.auth_code
+            if len(code_to_use) == 32:
+                print(f"[AUTH] Epic SID detected. Exchanging for authorization code...")
+                try:
+                    res = requests.get(
+                        "https://www.epicgames.com/id/api/redirect?clientId=34a02cf8f4414e29b15921876da36f9a&responseType=code",
+                        cookies={"sid": code_to_use},
+                        timeout=10
+                    )
+                    if res.status_code == 200:
+                        sid_json = res.json()
+                        if sid_json.get("authorizationCode"):
+                            code_to_use = sid_json["authorizationCode"]
+                            print("[AUTH] Epic SID exchange successful!")
+                        else:
+                            print(f"[AUTH] Epic SID exchange returned no code: {res.text}")
+                    else:
+                        print(f"[AUTH] Epic SID exchange failed with status {res.status_code}: {res.text}")
+                except Exception as e:
+                    print(f"[AUTH] Epic SID exchange exception: {e}")
+                    
+            tokens = await epic_service.exchange_code(code_to_use)
             if tokens:
                 data.access_token = tokens.get("access_token")
                 data.user_id = tokens.get("account_id")
                 data.refresh_token = tokens.get("refresh_token")
                 captured_username = tokens.get("displayName") or "Epic_Gamer"
             else:
-                return {"error": "Failed to exchange Epic authorization code"}
+                return {"error": "Failed to exchange Epic authorization credentials"}
                 
     elif data.platform == "gog":
         if data.auth_code:
@@ -179,7 +200,7 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
                     api_games = await steam_service.get_user_games(steam_id, steam_api_key)
                     if isinstance(api_games, list) and len(api_games) > 0 and "error" not in api_games[0]:
                         print(f"[SYNC] API SUCCESS: Found {len(api_games)} games.")
-                        for ag in api_games:
+                        for idx, ag in enumerate(api_games, 1):
                             aid, name = str(ag['id']), ag['name']
                             existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
                             if not existing:
@@ -195,6 +216,7 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
                                     playtime_hours=int(ag.get("playtime_forever", 0) / 60)
                                 ))
                                 total_scraped += 1
+                            print(f"[SYNC] [Steam] Processing game {idx}/{len(api_games)}: {name}")
                         session.commit()
                         continue # If API works, skip scraping
 
@@ -220,10 +242,60 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
                         res = scr.get(games_url, timeout=15)
                         
                         if "login" not in res.url:
-                            match = re.search(r'var rgGames = (\[.*?\]);', res.text)
+                            # Attempt modern JWT Web API session scrape first (post Steam UI redesign)
+                            jwt_token = None
+                            match = re.search(r'window\.SSR\.loaderData\s*=\s*(\[.*?\]);', res.text)
                             if match:
-                                steam_games = json.loads(match.group(1))
-                                print(f"[SCRAPER] SUCCESS: Found {len(steam_games)} games in Master List.")
+                                try:
+                                    loader_data = json.loads(match.group(1))
+                                    for item in loader_data:
+                                        if isinstance(item, str):
+                                            inner = json.loads(item)
+                                            if "strWebAPIToken" in inner:
+                                                jwt_token = inner["strWebAPIToken"]
+                                                break
+                                except Exception as e:
+                                    print(f"[SCRAPER] Failed to parse window.SSR.loaderData JWT: {e}")
+
+                            if jwt_token:
+                                print(f"[SCRAPER] Extracted WebAPI JWT token. Calling GetOwnedGames...")
+                                api_url = "https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/"
+                                params = {
+                                    "access_token": jwt_token,
+                                    "steamid": steam_id,
+                                    "include_appinfo": "true",
+                                    "include_played_free_games": "true"
+                                }
+                                api_res = requests.get(api_url, params=params, timeout=15)
+                                if api_res.status_code == 200:
+                                    api_data = api_res.json()
+                                    steam_games = api_data.get("response", {}).get("games", [])
+                                    print(f"[SCRAPER] SUCCESS: Found {len(steam_games)} games via JWT Web API.")
+                                    for idx, sg in enumerate(steam_games, 1):
+                                        aid, name = str(sg.get('appid')), sg.get('name')
+                                        existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
+                                        if not existing:
+                                            d, y, g = fetch_steam_metadata(aid)
+                                            session.add(Game(
+                                                platform_game_id=aid, 
+                                                name=name, 
+                                                platform="steam", 
+                                                image_url=f"https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/{aid}/library_600x900.jpg", 
+                                                description=d, 
+                                                year=y, 
+                                                genre=g,
+                                                playtime_hours=int(sg.get("playtime_forever", 0) / 60)
+                                            ))
+                                            total_scraped += 1
+                                        print(f"[SYNC] [Steam] Processing game {idx}/{len(steam_games)}: {name}")
+                                    session.commit()
+                                    continue
+
+                            # Fallback if JWT parsing fails but we are on the page (though we shouldn't hit this)
+                            match_rg = re.search(r'var rgGames = (\[.*?\]);', res.text)
+                            if match_rg:
+                                steam_games = json.loads(match_rg.group(1))
+                                print(f"[SCRAPER] SUCCESS: Found {len(steam_games)} games in legacy rgGames.")
                                 for sg in steam_games:
                                     aid, name = str(sg.get('appid')), sg.get('name')
                                     existing = session.exec(select(Game).where(Game.platform_game_id == aid, Game.platform == "steam")).first()
@@ -323,12 +395,39 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
 
             elif platform in ("epic", "epic games"):
                 print(f"[SYNC] Epic Games sync initialized for account: {sess.get('user_id')}")
+                access_token = sess.get("access_token")
+                refresh_token = sess.get("refresh_token")
+                
+                # Attempt to retrieve games using the existing access token
                 epic_games = await epic_service.get_user_games(
-                    access_token=sess.get("access_token"),
+                    access_token=access_token,
                     account_id=sess.get("user_id")
                 )
+                
+                # Auto-refresh and retry if the token has expired
+                if not epic_games and refresh_token:
+                    print("[SYNC] Epic Games token expired or empty. Attempting token refresh...")
+                    tokens = await epic_service.refresh_tokens(refresh_token)
+                    if tokens and "access_token" in tokens:
+                        access_token = tokens["access_token"]
+                        refresh_token = tokens.get("refresh_token") or refresh_token
+                        print("[SYNC] Epic Games token refresh successful. Updating session on disk...")
+                        auth_service.save_session(
+                            user_id="user_1",
+                            platform="epic",
+                            cookies=None,
+                            username=sess.get("username", "Epic_Gamer"),
+                            platform_user_id=sess.get("user_id"),
+                            access_token=access_token,
+                            refresh_token=refresh_token
+                        )
+                        epic_games = await epic_service.get_user_games(
+                            access_token=access_token,
+                            account_id=sess.get("user_id")
+                        )
+                
                 print(f"[SYNC] Epic Games found: {len(epic_games)}")
-                for eg in epic_games:
+                for idx, eg in enumerate(epic_games, 1):
                     eid = eg["id"]
                     existing = session.exec(select(Game).where(Game.platform_game_id == eid, Game.platform == "epic")).first()
                     if not existing:
@@ -342,15 +441,42 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
                             user_id="user_1"
                         ))
                         total_scraped += 1
+                    print(f"[SYNC] [Epic] Processing game {idx}/{len(epic_games)}: {eg['name']}")
                 session.commit()
                 
             elif platform == "gog":
                 print(f"[SYNC] GOG sync initialized for account: {sess.get('user_id')}")
+                access_token = sess.get("access_token")
+                refresh_token = sess.get("refresh_token")
+                
+                # Attempt to retrieve games using the existing access token
                 gog_games = await gog_service.get_user_games(
-                    access_token=sess.get("access_token")
+                    access_token=access_token
                 )
+                
+                # Auto-refresh and retry if the token has expired
+                if not gog_games and refresh_token:
+                    print("[SYNC] GOG token expired or empty. Attempting token refresh...")
+                    tokens = await gog_service.refresh_tokens(refresh_token)
+                    if tokens and "access_token" in tokens:
+                        access_token = tokens["access_token"]
+                        refresh_token = tokens.get("refresh_token") or refresh_token
+                        print("[SYNC] GOG token refresh successful. Updating session on disk...")
+                        auth_service.save_session(
+                            user_id="user_1",
+                            platform="gog",
+                            cookies=None,
+                            username=sess.get("username", "GOG_Gamer"),
+                            platform_user_id=sess.get("user_id"),
+                            access_token=access_token,
+                            refresh_token=refresh_token
+                        )
+                        gog_games = await gog_service.get_user_games(
+                            access_token=access_token
+                        )
+                        
                 print(f"[SYNC] GOG games found: {len(gog_games)}")
-                for gg in gog_games:
+                for idx, gg in enumerate(gog_games, 1):
                     gid = gg["id"]
                     existing = session.exec(select(Game).where(Game.platform_game_id == gid, Game.platform == "gog")).first()
                     if not existing:
@@ -364,12 +490,24 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
                             user_id="user_1"
                         ))
                         total_scraped += 1
+                    print(f"[SYNC] [GOG] Processing game {idx}/{len(gog_games)}: {gg['name']}")
                 session.commit()
 
+        steam_count = len(session.exec(select(Game).where(Game.platform == "steam")).all())
+        epic_count = len(session.exec(select(Game).where(Game.platform == "epic")).all())
+        gog_count = len(session.exec(select(Game).where(Game.platform == "gog")).all())
         real_count = len(session.exec(select(Game)).all())
-        print(f"[SYNC] Complete. Total verified units: {real_count}")
+        print(f"[SYNC] Complete. Total verified units: {real_count} (Steam: {steam_count}, Epic: {epic_count}, GOG: {gog_count})")
 
-    return {"message": f"Sync complete. {real_count} real units active.", "scraped": real_count}
+    return {
+        "message": f"Sync complete. {real_count} real units active.", 
+        "scraped": real_count,
+        "counts": {
+            "steam": steam_count,
+            "epic": epic_count,
+            "gog": gog_count
+        }
+    }
 
 @app.get("/health")
 async def health():

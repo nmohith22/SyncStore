@@ -6,9 +6,10 @@ interface PlatformCardProps {
   name: string;
   loginUrl: string;
   onLoginSuccess: (platform: string, username: string) => void;
+  gameCount?: number;
 }
 
-export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardProps) => {
+export const PlatformCard = ({ name, loginUrl, onLoginSuccess, gameCount }: PlatformCardProps) => {
   const [status, setStatus] = useState<'idle' | 'logging_in' | 'connected'>('idle');
   const [username, setUsername] = useState<string | null>(null);
   const [authCodeInput, setAuthCodeInput] = useState('');
@@ -36,7 +37,7 @@ export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardPro
       // For Epic and GOG, we instruct the user to log in via browser and copy code
       let targetUrl = loginUrl;
       if (platformKey === 'epicgames' || platformKey === 'epic') {
-        targetUrl = 'https://www.epicgames.com/id/api/redirect?clientId=34a02cf8f4414e29b15921876da36f9a&responseType=code';
+        targetUrl = 'https://www.epicgames.com/id/login?redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Fid%2Fapi%2Fredirect%3FclientId%3D34a02cf8f4414e29b15921876da36f9a%26responseType%3Dcode';
       }
       window.open(targetUrl, '_blank');
       return;
@@ -145,8 +146,16 @@ export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardPro
     }
 
     let code = authCodeInput.trim();
-    // Parse code from URL if user pasted the entire redirect URL
-    if (code.includes('code=')) {
+    
+    // Check if user pasted JSON or string containing authorizationCode/sid (Epic Games response)
+    const authCodeMatch = code.match(/"authorizationCode"\s*:\s*"([^"]+)"/);
+    const sidMatch = code.match(/"sid"\s*:\s*"([^"]+)"/);
+    if (authCodeMatch) {
+      code = authCodeMatch[1];
+    } else if (sidMatch) {
+      code = sidMatch[1];
+    } else if (code.includes('code=')) {
+      // Parse code from URL if user pasted the entire redirect URL
       try {
         const urlObj = new URL(code);
         const codeParam = urlObj.searchParams.get('code');
@@ -218,6 +227,9 @@ export const PlatformCard = ({ name, loginUrl, onLoginSuccess }: PlatformCardPro
     >
       <div className="flex flex-col items-center gap-2">
         <h3 className="text-2xl font-black italic tracking-tighter uppercase leading-none">{name}</h3>
+        {status === 'connected' && gameCount !== undefined && (
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-main/80 -mt-1">{gameCount} GAMES</span>
+        )}
         {username && (
           <div className="flex items-center gap-2 opacity-60">
             <User size={12} className="text-main" />

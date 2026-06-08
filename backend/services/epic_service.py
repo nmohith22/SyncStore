@@ -35,12 +35,34 @@ class EpicService:
                 logger.error(f"[EPIC_AUTH] Exception during token exchange: {e}")
                 return None
 
+    async def refresh_tokens(self, refresh_token: str):
+        url = "https://account-public-service-prod.ol.epicgames.com/account/api/oauth/token"
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": "Basic MzRhMDJjZjhmNDQxNGUyOWIxNTkyMTg3NmRhMzZmOWE6ZGFhZmJjY2M3Mzc3NDUwMzlkZmZlNTNkOTRmYzc2Y2Y="
+        }
+        data = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                res = await client.post(url, data=data, headers=headers, timeout=10)
+                if res.status_code == 200:
+                    return res.json()
+                else:
+                    logger.error(f"[EPIC_AUTH] Refresh failed with status {res.status_code}: {res.text}")
+                    return None
+            except Exception as e:
+                logger.error(f"[EPIC_AUTH] Exception during refresh: {e}")
+                return None
+
     async def get_user_games(self, access_token: str = None, account_id: str = None):
         if not access_token or not account_id:
             logger.warning("[EPIC_API] Missing access token or account ID.")
             return []
             
-        base_url = f"https://library-service.live.use1a.on.epicgames.com/library/api/public/items/{account_id}"
+        base_url = "https://library-service.live.use1a.on.epicgames.com/library/api/public/items"
         headers = {
             "Authorization": f"Bearer {access_token}"
         }
@@ -68,8 +90,8 @@ class EpicService:
                     for rec in records:
                         app_name = rec.get("appName")
                         catalog_item_id = rec.get("catalogItemId")
-                        catalog_namespace = rec.get("catalogNamespace")
-                        title = rec.get("title") or app_name
+                        catalog_namespace = rec.get("namespace")
+                        title = rec.get("sandboxName") or rec.get("title") or app_name
                         
                         image_url = f"https://cdn1.epicgames.com/item/{catalog_namespace}/{catalog_item_id}_tall.jpg"
                         

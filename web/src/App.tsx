@@ -72,6 +72,11 @@ function App() {
     setGames(newGames);
   }
 
+  const getPlatformCount = (platform: string) => {
+    if (platform === 'all') return games.length;
+    return games.filter(g => g.platforms.some(p => p.toLowerCase() === platform.toLowerCase())).length;
+  }
+
   const fetchGamesFromBackend = async () => {
     console.log("[SYNC] Initiating master synchronization protocol...");
     setIsSyncing(true);
@@ -345,12 +350,12 @@ function App() {
                 onChange={(e) => setFilterPlatform(e.target.value)}
                 className="bg-transparent text-[11px] font-black uppercase tracking-[0.3em] focus:outline-none cursor-pointer text-sub hover:text-text transition-colors italic"
               >
-                <option value="all">ALL_NETS</option>
-                <option value="steam">STEAM_NET</option>
-                <option value="epic">EPIC_VAULT</option>
-                <option value="gog">GOG_GALAXY</option>
-                <option value="psn">PLAYSTATION_NET</option>
-                <option value="xbox">XBOX_CORE</option>
+                <option value="all">ALL_NETS ({getPlatformCount('all')})</option>
+                <option value="steam">STEAM_NET ({getPlatformCount('steam')})</option>
+                <option value="epic">EPIC_VAULT ({getPlatformCount('epic')})</option>
+                <option value="gog">GOG_GALAXY ({getPlatformCount('gog')})</option>
+                <option value="psn">PLAYSTATION_NET ({getPlatformCount('psn')})</option>
+                <option value="xbox">XBOX_CORE ({getPlatformCount('xbox')})</option>
               </select>
             </div>
           </div>
@@ -365,11 +370,11 @@ function App() {
               exit={{ opacity: 0, x: -20 }}
               className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8"
             >
-              <PlatformCard name="Steam" loginUrl="https://store.steampowered.com/login/" onLoginSuccess={fetchGamesFromBackend} />
-              <PlatformCard name="Epic Games" loginUrl="https://www.epicgames.com/id/login" onLoginSuccess={fetchGamesFromBackend} />
-              <PlatformCard name="GOG" loginUrl="https://login.gog.com/auth?client_id=46899977096215643&redirect_uri=https://embed.gog.com/on_login_callback?gog_id=1&response_type=code&layout=default" onLoginSuccess={fetchGamesFromBackend} />
-              <PlatformCard name="PlayStation" loginUrl="https://www.playstation.com/en-us/sign-in/" onLoginSuccess={fetchGamesFromBackend} />
-              <PlatformCard name="Xbox" loginUrl="https://www.xbox.com/en-US/auth/msa" onLoginSuccess={fetchGamesFromBackend} />
+              <PlatformCard name="Steam" loginUrl="https://store.steampowered.com/login/" onLoginSuccess={fetchGamesFromBackend} gameCount={getPlatformCount('steam')} />
+              <PlatformCard name="Epic Games" loginUrl="https://www.epicgames.com/id/login" onLoginSuccess={fetchGamesFromBackend} gameCount={getPlatformCount('epic')} />
+              <PlatformCard name="GOG" loginUrl="https://login.gog.com/auth?client_id=46899977096215655&redirect_uri=https%3A%2F%2Fembed.gog.com%2Fon_login_success%3Forigin%3Dclient&response_type=code&layout=default" onLoginSuccess={fetchGamesFromBackend} gameCount={getPlatformCount('gog')} />
+              <PlatformCard name="PlayStation" loginUrl="https://www.playstation.com/en-us/sign-in/" onLoginSuccess={fetchGamesFromBackend} gameCount={getPlatformCount('psn')} />
+              <PlatformCard name="Xbox" loginUrl="https://www.xbox.com/en-US/auth/msa" onLoginSuccess={fetchGamesFromBackend} gameCount={getPlatformCount('xbox')} />
             </motion.div>
           ) : (
             <motion.div 
