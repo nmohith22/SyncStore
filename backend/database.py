@@ -13,7 +13,11 @@ class Game(SQLModel, table=True):
     playtime_hours: Optional[int] = 0
     user_id: str = "user_1"
 
-sqlite_file_name = "syncstore.db"
+import sys
+import os
+
+is_testing = "pytest" in sys.modules or os.getenv("TESTING") == "true"
+sqlite_file_name = "syncstore_test.db" if is_testing else "syncstore.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 engine = create_engine(sqlite_url, echo=False)

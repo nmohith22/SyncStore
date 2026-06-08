@@ -14,9 +14,12 @@ class SessionData(BaseModel):
     steam_api_key: Optional[str] = None
     auth_code: Optional[str] = None
 
+import sys
+
 class AuthService:
     def __init__(self):
-        self.sessions_dir = "sessions"
+        is_testing = "pytest" in sys.modules or os.getenv("TESTING") == "true"
+        self.sessions_dir = "test_sessions" if is_testing else "sessions"
         if not os.path.exists(self.sessions_dir):
             os.makedirs(self.sessions_dir)
 

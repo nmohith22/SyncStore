@@ -78,6 +78,41 @@ function App() {
     try {
       const backendUrl = localStorage.getItem('syncstore_backend_url') || 'http://localhost:8001';
       const steamKey = localStorage.getItem('syncstore_steam_api_key') || '';
+
+      // Refresh Steam cookies and session on backend before triggering sync
+      const savedSteam = localStorage.getItem('syncstore_session_steam');
+      if (savedSteam) {
+        const { steamId } = JSON.parse(savedSteam);
+        if (steamId) {
+          let steamCookies = {};
+          // @ts-ignore
+          if (window.require) {
+            try {
+              // @ts-ignore
+              const { ipcRenderer } = window.require('electron');
+              steamCookies = await ipcRenderer.invoke('get-steam-cookies');
+            } catch (e) {
+              console.error('Failed to get Steam cookies before sync:', e);
+            }
+          }
+          try {
+            await fetch(`${backendUrl}/auth/session`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                platform: 'steam',
+                cookies: steamCookies,
+                user_id: steamId,
+                username: "Syncing_Account...",
+                steam_api_key: steamKey
+              })
+            });
+            console.log('[SYNC] Steam session updated on backend.');
+          } catch (e) {
+            console.error('[SYNC] Failed to update Steam session on backend:', e);
+          }
+        }
+      }
       
       // Step 1: Trigger Backend Sync (Total Purge & Re-scrape)
       const syncRes = await fetch(`${backendUrl}/sync/all`, { 
@@ -147,6 +182,46 @@ function App() {
 
   useEffect(() => {
     loadGames();
+    
+    // Silent session sync on startup
+    const syncSession = async () => {
+      const savedSteam = localStorage.getItem('syncstore_session_steam');
+      if (savedSteam) {
+        const { steamId } = JSON.parse(savedSteam);
+        if (steamId) {
+          let steamCookies = {};
+          // @ts-ignore
+          if (window.require) {
+            try {
+              // @ts-ignore
+              const { ipcRenderer } = window.require('electron');
+              steamCookies = await ipcRenderer.invoke('get-steam-cookies');
+            } catch (e) {
+              console.error('Failed to get Steam cookies on startup:', e);
+            }
+          }
+          const backendUrl = localStorage.getItem('syncstore_backend_url') || 'http://localhost:8001';
+          try {
+            await fetch(`${backendUrl}/auth/session`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                platform: 'steam',
+                cookies: steamCookies,
+                user_id: steamId,
+                username: "Syncing_Account...",
+                steam_api_key: localStorage.getItem('syncstore_steam_api_key')
+              })
+            });
+            console.log('[AUTH] Silent Steam session synced with backend.');
+          } catch (e) {
+            console.error('[AUTH] Failed to sync Steam session with backend on startup:', e);
+          }
+        }
+      }
+    };
+    
+    syncSession();
   }, [])
 
   const filteredGames = games.filter(g => {
