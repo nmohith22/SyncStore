@@ -143,8 +143,33 @@ async def trigger_sync(request_data: Optional[SyncRequest] = None):
         for platform, sess in connected_platforms:
             if platform == "steam":
                 steam_id = sess.get("user_id")
-                # Use key from sync request, or stored session key, or env
                 steam_api_key = (request_data.steam_api_key if request_data else None) or sess.get("steam_api_key")
+                
+                # SELF-HEALING: Parse actual Steam ID from cookies if they exist to match the cookie owner
+                cookies = sess.get("cookies")
+                cookie_steam_id = None
+                if cookies:
+                    if "steamID" in cookies:
+                        cookie_steam_id = cookies["steamID"]
+                    elif "steamLoginSecure" in cookies:
+                        from urllib.parse import unquote
+                        val = unquote(cookies["steamLoginSecure"])
+                        if "||" in val:
+                            cookie_steam_id = val.split("||")[0]
+                
+                if cookie_steam_id and cookie_steam_id.startswith("7656119") and len(cookie_steam_id) == 17:
+                    if steam_id != cookie_steam_id:
+                        print(f"[SYNC] Self-healing Steam ID: {steam_id} -> {cookie_steam_id}")
+                        steam_id = cookie_steam_id
+                        sess["user_id"] = steam_id
+                        auth_service.save_session(
+                            user_id="user_1",
+                            platform="steam",
+                            cookies=cookies,
+                            username=sess.get("username", "Verified_Member"),
+                            platform_user_id=steam_id,
+                            steam_api_key=steam_api_key
+                        )
                 
                 if steam_id:
                     print(f"[SYNC] Target Profile: {steam_id}")
