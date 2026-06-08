@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, SafeAreaView, Dimensions, TextInput } from 'react-native';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, SafeAreaView, Dimensions, TextInput, Modal } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ThemeProvider, useTheme } from './src/styles/ThemeContext';
 import { themes } from './src/styles/themes';
-import { Gamepad, Ghost, Settings, LayoutGrid, Layers, RefreshCcw, Search } from 'lucide-react-native';
+import { Gamepad, Ghost, Settings, LayoutGrid, Layers, RefreshCcw, Search, X } from 'lucide-react-native';
 import Animated, { 
   FadeInDown,
   Layout
@@ -27,10 +27,12 @@ function MainApp() {
   const [games, setGames] = useState<Game[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [backendUrl, setBackendUrl] = useState('http://localhost:8001');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const fetchGames = async () => {
     try {
-      const res = await fetch('http://localhost:8001/games');
+      const res = await fetch(`${backendUrl}/games`);
       const data = await res.json();
       
       // Grouping logic: merge games with same name but different platforms
@@ -63,7 +65,7 @@ function MainApp() {
   const handleSync = async () => {
     setIsSyncing(true);
     try {
-      await fetch('http://localhost:8001/sync/all', { method: 'POST' });
+      await fetch(`${backendUrl}/sync/all`, { method: 'POST' });
       await new Promise(resolve => setTimeout(resolve, 2000));
       await fetchGames();
     } catch (e) {
@@ -75,7 +77,7 @@ function MainApp() {
 
   React.useEffect(() => {
     fetchGames();
-  }, []);
+  }, [backendUrl]);
 
   const containerStyle = {
     flex: 1,
@@ -110,7 +112,7 @@ function MainApp() {
           <TouchableOpacity onPress={handleSync} disabled={isSyncing} style={styles.actionBtn}>
             <RefreshCcw size={22} color={isSyncing ? theme.colors.sub : theme.colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn}>
+          <TouchableOpacity onPress={() => setIsSettingsOpen(true)} style={styles.actionBtn}>
             <Settings size={22} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
@@ -164,26 +166,31 @@ function MainApp() {
               <PlatformCard 
                 name="Steam" 
                 loginUrl="https://store.steampowered.com/login/" 
+                backendUrl={backendUrl}
                 onLoginSuccess={handleSync} 
               />
               <PlatformCard 
                 name="Epic Games" 
                 loginUrl="https://www.epicgames.com/id/login" 
+                backendUrl={backendUrl}
                 onLoginSuccess={handleSync} 
               />
               <PlatformCard 
                 name="GOG" 
                 loginUrl="https://login.gog.com/auth?client_id=46899977096215643&redirect_uri=https://embed.gog.com/on_login_callback?gog_id=1&response_type=code&layout=default" 
+                backendUrl={backendUrl}
                 onLoginSuccess={handleSync} 
               />
               <PlatformCard 
                 name="PlayStation" 
                 loginUrl="https://www.playstation.com/en-us/sign-in/" 
+                backendUrl={backendUrl}
                 onLoginSuccess={handleSync} 
               />
               <PlatformCard 
                 name="Xbox" 
                 loginUrl="https://www.xbox.com/en-US/auth/msa" 
+                backendUrl={backendUrl}
                 onLoginSuccess={handleSync} 
               />
             </>
@@ -219,6 +226,44 @@ function MainApp() {
           )}
         </Animated.View>
       </ScrollView>
+
+      {/* Settings Modal */}
+      <Modal visible={isSettingsOpen} transparent animationType="fade" onRequestClose={() => setIsSettingsOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.settingsBox, { backgroundColor: theme.colors.bg, borderColor: theme.colors.sub + '44' }]}>
+            <View style={styles.settingsHeader}>
+              <Text style={[styles.settingsTitle, { color: theme.colors.text }]}>SYSTEM CONFIG</Text>
+              <TouchableOpacity onPress={() => setIsSettingsOpen(false)}>
+                <X size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.settingsBody}>
+              <Text style={[styles.inputLabel, { color: theme.colors.sub }]}>BACKEND NODE URL</Text>
+              <TextInput
+                value={backendUrl}
+                onChangeText={setBackendUrl}
+                placeholder="http://192.168.1.100:8001"
+                placeholderTextColor={theme.colors.sub + '44'}
+                style={[styles.settingsInput, { color: theme.colors.text, borderColor: theme.colors.sub + '22', backgroundColor: theme.colors.sub + '08' }]}
+              />
+              <Text style={[styles.settingsInfo, { color: theme.colors.sub }]}>
+                ENTER THE IP ADDRESS OF YOUR COMPUTER RUNNING THE DESKTOP APP (E.G., HTTP://192.168.X.X:8001).
+              </Text>
+            </View>
+            
+            <TouchableOpacity 
+              onPress={() => {
+                setIsSettingsOpen(false);
+                fetchGames();
+              }}
+              style={[styles.saveBtn, { backgroundColor: theme.colors.main }]}
+            >
+              <Text style={[styles.saveBtnText, { color: theme.colors.bg }]}>ACCEPT CHANGES</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -335,5 +380,63 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 8,
     fontWeight: '900',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  settingsBox: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 25,
+    borderWidth: 2,
+    padding: 24,
+    gap: 20,
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  settingsTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  settingsBody: {
+    gap: 10,
+  },
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  settingsInput: {
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  settingsInfo: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+    lineHeight: 14,
+    opacity: 0.4,
+  },
+  saveBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  saveBtnText: {
+    fontWeight: 'bold',
+    fontSize: 12,
+    letterSpacing: 2,
   }
 });

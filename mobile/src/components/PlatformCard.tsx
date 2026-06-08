@@ -7,10 +7,11 @@ import { useTheme } from '../styles/ThemeContext';
 interface PlatformCardProps {
   name: string;
   loginUrl: string;
-  onLoginSuccess: (cookies: any) => void;
+  backendUrl: string;
+  onLoginSuccess: () => void;
 }
 
-export const PlatformCard: React.FC<PlatformCardProps> = ({ name, loginUrl, onLoginSuccess }) => {
+export const PlatformCard: React.FC<PlatformCardProps> = ({ name, loginUrl, backendUrl, onLoginSuccess }) => {
   const { theme } = useTheme();
   const [status, setStatus] = useState<'idle' | 'logging_in' | 'connected'>('idle');
   const [showWebView, setShowWebView] = useState(false);
@@ -26,7 +27,7 @@ export const PlatformCard: React.FC<PlatformCardProps> = ({ name, loginUrl, onLo
         setStatus('connected');
         
         // Notify backend of session
-        fetch('http://localhost:8001/auth/session', {
+        fetch(`${backendUrl}/auth/session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
