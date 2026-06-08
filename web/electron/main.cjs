@@ -16,8 +16,13 @@ function startBackend() {
     : path.join(process.resourcesPath, 'syncstore-backend.exe');
 
   if (isDev) {
-    // Run python directly
-    backendProcess = spawn('python', ['-m', 'uvicorn', 'main:app', '--port', '8001'], {
+    const fs = require('fs');
+    // Check if virtual environment python exists
+    const venvPythonPath = path.join(__dirname, '../../backend/venv/Scripts/python.exe');
+    const pythonExe = fs.existsSync(venvPythonPath) ? venvPythonPath : 'python';
+    
+    console.log(`Using python executable: ${pythonExe}`);
+    backendProcess = spawn(pythonExe, ['-m', 'uvicorn', 'main:app', '--port', '8001'], {
       cwd: path.join(__dirname, '../../backend'),
       shell: true
     });
