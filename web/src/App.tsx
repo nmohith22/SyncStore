@@ -177,9 +177,13 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col p-10 font-sans selection:bg-main selection:text-bg transition-colors duration-1000" style={{ color: 'var(--color-text)', backgroundColor: 'var(--color-bg)' }}>
+    <div className="min-h-screen flex flex-col p-10 font-sans selection:bg-main selection:text-bg transition-colors duration-1000 relative overflow-x-hidden" style={{ color: 'var(--color-text)', backgroundColor: 'var(--color-bg)' }}>
+      {/* Background aesthetic layers */}
+      <div className="grid-bg" />
+      <div className="scanlines" />
+
       {/* Header */}
-      <header className="flex justify-between items-center mb-24">
+      <header className="flex justify-between items-center mb-24 relative z-10">
         <div className="flex flex-col group cursor-pointer" onClick={() => setActiveTab('library')}>
           <h1 className="text-6xl font-black tracking-tighter uppercase italic leading-none select-none">
             SYNC<span style={{ color: 'var(--color-main)' }}>STORE</span>
@@ -231,21 +235,28 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-[2400px] mx-auto w-full">
+      <main className="flex-1 max-w-[2400px] mx-auto w-full relative z-10">
         <div className="flex justify-between items-center mb-16">
-          <div className="flex gap-4 bg-sub/5 p-2 rounded-[1.2rem] border-2 border-sub/5 backdrop-blur-md">
+          <div className="flex gap-4 bg-sub/5 p-2 rounded-[1.2rem] border-2 border-sub/5 backdrop-blur-md relative overflow-hidden">
             {['library', 'platforms'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className="px-14 py-4 rounded-xl font-black text-[11px] tracking-[0.5em] transition-all uppercase italic"
+                className="relative px-14 py-4 rounded-xl font-black text-[11px] tracking-[0.5em] transition-all uppercase italic z-10"
                 style={{
-                  backgroundColor: activeTab === tab ? 'var(--color-main)' : 'transparent',
-                  color: activeTab === tab ? 'var(--color-bg)' : 'var(--color-text)',
-                  opacity: activeTab === tab ? 1 : 0.3
+                  color: activeTab === tab ? 'var(--color-bg)' : 'var(--color-text)'
                 }}
               >
-                {tab}
+                {activeTab === tab && (
+                  <motion.div
+                    layoutId="activeTabPill"
+                    className="absolute inset-0 bg-main rounded-xl -z-10"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <span className={activeTab === tab ? 'opacity-100' : 'opacity-30 hover:opacity-80 transition-opacity duration-300'}>
+                  {tab}
+                </span>
               </button>
             ))}
           </div>
@@ -258,7 +269,7 @@ function App() {
                 onChange={(e) => setFilterPlatform(e.target.value)}
                 className="bg-transparent text-[11px] font-black uppercase tracking-[0.3em] focus:outline-none cursor-pointer text-sub hover:text-text transition-colors italic"
               >
-                <option value="all"></option>
+                <option value="all">ALL_NETS</option>
                 <option value="steam">STEAM_NET</option>
                 <option value="epic">EPIC_VAULT</option>
                 <option value="gog">GOG_GALAXY</option>
@@ -302,7 +313,7 @@ function App() {
                   variants={itemVariants}
                   whileHover={{ scale: 1.05, y: -12 }}
                   onClick={() => setSelectedGame(game)}
-                  className={`group relative rounded-[2.5rem] border-2 transition-all duration-500 cursor-pointer overflow-hidden shadow-2xl ${
+                  className={`group relative rounded-[2.5rem] border-2 transition-all duration-500 cursor-pointer shadow-2xl ${
                     cardStyle === 'poster' ? 'aspect-[3/4]' : 'aspect-square'
                   }`}
                   style={{ 
@@ -310,9 +321,14 @@ function App() {
                     borderColor: 'var(--color-sub)',
                   }}
                 >
+                  {/* Glowing neon halo backdrop on hover */}
+                  <div className="absolute -inset-2 bg-main rounded-[2.6rem] blur-xl opacity-0 group-hover:opacity-20 transition-opacity duration-500 pointer-events-none -z-10" />
+
+                  {/* Highlighting border overlay on hover */}
                   <div className="absolute inset-0 border-4 border-main opacity-0 group-hover:opacity-100 transition-opacity duration-500 z-20 pointer-events-none rounded-[2.5rem]" />
                   
-                  <div className="w-full h-full overflow-hidden">
+                  {/* Inner clipped content */}
+                  <div className="w-full h-full overflow-hidden rounded-[2.5rem] relative z-10">
                     {game.image_url ? (
                       <img src={game.image_url} alt={game.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000 ease-out" />
                     ) : (
@@ -320,18 +336,21 @@ function App() {
                         <Gamepad2 size={64} />
                       </div>
                     )}
-                  </div>
-                  
-                  <PlatformLabel platforms={game.platforms} />
 
-                  <div className="absolute inset-x-0 bottom-0 p-8 bg-gradient-to-t from-black via-black/80 to-transparent z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 translate-y-4 group-hover:translate-y-0">
-                    <h3 className={`font-black leading-[1.1] uppercase italic text-white group-hover:text-main transition-colors duration-300 tracking-tighter mb-4 line-clamp-3 ${getDynamicFontSize(game.name)}`}>
-                      {game.name}
-                    </h3>
-                    <div className="flex items-center gap-4 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
-                      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white border-b-2 border-main/40 pb-0.5">{game.year}</span>
-                      <div className="w-1.5 h-1.5 rounded-full bg-main/50" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/80 line-clamp-1">{game.genre}</span>
+                    {/* Glossy light-beam reflection overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out z-25 pointer-events-none" />
+
+                    <PlatformLabel platforms={game.platforms} />
+
+                    <div className="absolute inset-x-0 bottom-0 p-8 bg-gradient-to-t from-black via-black/80 to-transparent z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 translate-y-4 group-hover:translate-y-0">
+                      <h3 className={`font-black leading-[1.1] uppercase italic text-white group-hover:text-main transition-colors duration-300 tracking-tighter mb-4 line-clamp-3 ${getDynamicFontSize(game.name)}`}>
+                        {game.name}
+                      </h3>
+                      <div className="flex items-center gap-4 opacity-50 group-hover:opacity-100 transition-opacity duration-300">
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white border-b-2 border-main/40 pb-0.5">{game.year}</span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-main/50" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/80 line-clamp-1">{game.genre}</span>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -363,10 +382,72 @@ function App() {
         onClose={() => setSelectedGame(null)}
       />
 
+      {/* Holographic deep sync overlay */}
+      <AnimatePresence>
+        {isSyncing && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black/95 backdrop-blur-xl pointer-events-auto select-none"
+          >
+            {/* Spinning Nested Radar Dials */}
+            <div className="relative w-64 h-64 mb-16 flex items-center justify-center">
+              <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                className="absolute inset-0 rounded-full border-4 border-dashed border-main/20"
+              />
+              <motion.div 
+                animate={{ rotate: -360 }}
+                transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                className="absolute -inset-4 rounded-full border-2 border-sub/30 border-t-main"
+              />
+              <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
+                className="absolute -inset-8 rounded-full border border-dashed border-main/40 border-r-transparent border-l-transparent"
+              />
+              <RefreshCw size={56} className="text-main animate-spin-slow" />
+            </div>
+
+            <motion.h2 
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="text-4xl font-black italic tracking-[0.25em] text-main uppercase mb-4"
+            >
+              SYNCING_ALL_UNITS
+            </motion.h2>
+            
+            <div className="flex flex-col gap-1.5 w-full max-w-md bg-sub/5 p-8 rounded-3xl border-2 border-sub/10 font-mono text-left text-[10px] uppercase tracking-wider text-text/80 shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
+              <div className="flex justify-between items-center text-main font-black">
+                <span>SYSTEM_STATUS:</span>
+                <span className="animate-pulse">DEEP_SCRAPING_STOREFRONT_NODES</span>
+              </div>
+              <div className="w-full h-1 bg-sub/10 rounded-full overflow-hidden mt-3">
+                <motion.div 
+                  initial={{ width: "0%" }}
+                  animate={{ width: "100%" }}
+                  transition={{ duration: 4.5, ease: "easeInOut" }}
+                  className="h-full bg-main"
+                />
+              </div>
+              <span className="mt-4 text-sub">1. Connected to FastAPI local sidecar...</span>
+              <span className="text-sub">2. Session cookie validation active...</span>
+              <span className="text-sub">3. Scanning Steam, GOG, and Epic libraries...</span>
+              <span className="text-sub">4. Finalizing persistence data sync...</span>
+              
+              {/* Decorative scanline overlay */}
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-transparent h-1/2 w-full animate-pulse pointer-events-none" />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Footer */}
-      <footer className="mt-48 border-t-2 border-sub/5 pt-16 opacity-30" />
+      <footer className="mt-48 border-t-2 border-sub/5 pt-16 opacity-30 relative z-10" />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

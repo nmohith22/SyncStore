@@ -76,3 +76,44 @@ body {
 .animate-spin-slow {
   animation: spin-slow 10s linear infinite;
 }
+
+/* Animated Cyberpunk Grid Background */
+.grid-bg {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: 
+    linear-gradient(to right, var(--color-sub) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-sub) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(circle at center, black, transparent 75%);
+  -webkit-mask-image: radial-gradient(circle at center, black, transparent 75%);
+  z-index: 0;
+  opacity: 0.08;
+  transform: perspective(800px) rotateX(60deg) translateY(-100px);
+  transform-origin: top;
+  animation: grid-scroll 30s linear infinite;
+}
+
+@keyframes grid-scroll {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 0 600px;
+  }
+}
+
+/* Scanline overlay */
+.scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    rgba(18, 16, 16, 0) 50%, 
+    rgba(0, 0, 0, 0.15) 50%
+  );
+  background-size: 100% 4px;
+  z-index: 999;
+  opacity: 0.1;
+}

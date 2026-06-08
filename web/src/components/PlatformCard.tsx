@@ -1,6 +1,6 @@
 import { useState, useEffect, MouseEvent } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertCircle, User, XCircle, ExternalLink, ShieldCheck } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { AlertCircle, User, XCircle, ExternalLink, ShieldCheck } from 'lucide-react';
 
 interface PlatformCardProps {
   name: string;
