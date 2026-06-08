@@ -91,6 +91,7 @@ function App() {
               // @ts-ignore
               const { ipcRenderer } = window.require('electron');
               steamCookies = await ipcRenderer.invoke('get-steam-cookies');
+              console.log('[SYNC] Steam cookies retrieved:', Object.keys(steamCookies));
             } catch (e) {
               console.error('Failed to get Steam cookies before sync:', e);
             }

@@ -4,7 +4,7 @@ const { spawn } = require('child_process');
 
 ipcMain.handle('get-steam-cookies', async () => {
   try {
-    const cookies = await session.defaultSession.cookies.get({ domain: 'steamcommunity.com' });
+    const cookies = await session.defaultSession.cookies.get({ url: 'https://steamcommunity.com' });
     const cookieDict = {};
     cookies.forEach(c => {
       cookieDict[c.name] = c.value;
